@@ -29,6 +29,7 @@ from cleaning_agent.predictor import predict_action, _load_model
 from cleaning_agent.detector import detect_dataset_type
 from cleaning_agent.intelligence import refine_action
 from cleaning_agent.analyzer import analyze_dataset
+from cleaning_agent.stat_analyzer.routes import router as stat_analyzer_router
 
 app = FastAPI(
     title="Cleaning Agent v2",
@@ -45,6 +46,8 @@ app.add_middleware(
 )
 
 PIPELINE = CleaningPipeline()
+
+app.include_router(stat_analyzer_router)
 
 AVAILABLE_ACTIONS = [
     "no_change",
