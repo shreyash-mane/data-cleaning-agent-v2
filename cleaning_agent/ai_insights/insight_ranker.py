@@ -17,11 +17,12 @@ from __future__ import annotations
 import math
 
 _STRENGTH_SCORE: dict[str, float] = {
-    "strong":   1.00,
-    "high":     0.85,
-    "moderate": 0.65,
-    "weak":     0.30,
-    "info":     0.10,
+    "strong":    1.00,
+    "high":      0.85,
+    "moderate":  0.65,
+    "weak":      0.35,
+    "very weak": 0.15,
+    "info":      0.10,
 }
 
 _TYPE_PRIORITY: dict[str, float] = {

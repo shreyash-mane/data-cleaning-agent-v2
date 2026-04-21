@@ -8,8 +8,8 @@ Types returned
 numerical   – numeric column suitable for quantitative analysis
 categorical – low-cardinality string / boolean column
 date        – date or datetime column
-id          – high-cardinality integer / identifier column (skip for analysis)
-text        – very-high-cardinality free-text column (skip for analysis)
+id          – identifier column (name contains "id" AND unique ratio > 95%)
+text        – very-high-cardinality free-text column
 """
 
 from __future__ import annotations
@@ -20,27 +20,24 @@ import warnings
 import pandas as pd
 
 _DATE_PATTERNS = [
-    re.compile(r"^\d{4}-\d{1,2}-\d{1,2}"),           # 2020-01-15
-    re.compile(r"^\d{1,2}/\d{1,2}/\d{4}"),            # 01/15/2020
-    re.compile(r"^\d{1,2}-\d{1,2}-\d{4}"),            # 15-01-2020
-    re.compile(r"^\d{4}/\d{1,2}/\d{1,2}"),            # 2020/01/15
-    re.compile(r"^\w{3}\s+\d{1,2},?\s+\d{4}"),        # Jan 15, 2020
-    re.compile(r"^\d{1,2}\s+\w{3}\s+\d{4}"),          # 15 Jan 2020
-    re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}"),   # ISO 8601
+    re.compile(r"^\d{4}-\d{1,2}-\d{1,2}"),
+    re.compile(r"^\d{1,2}/\d{1,2}/\d{4}"),
+    re.compile(r"^\d{1,2}-\d{1,2}-\d{4}"),
+    re.compile(r"^\d{4}/\d{1,2}/\d{1,2}"),
+    re.compile(r"^\w{3}\s+\d{1,2},?\s+\d{4}"),
+    re.compile(r"^\d{1,2}\s+\w{3}\s+\d{4}"),
+    re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}"),
 ]
 
-_ID_PAT = re.compile(
-    r"\bid\b|_id$|^id_|\buid\b|\bguid\b|\buuid\b"
-    r"|^(row|record|entry|seq|serial|index|idx)$"
-    r"|_(no|num|nbr|number|code|key)$",
-    re.I,
-)
+# STRICT: only match when the column name clearly signals an identifier.
+# Must contain the word "id" as a word boundary, or end with _id / start with id_.
+# This intentionally does NOT match: age, salary, score, credit_score, etc.
+_ID_NAME_PAT = re.compile(r"\bid\b|_id$|^id_|\buid\b|\bguid\b|\buuid\b", re.I)
 
 
 def infer_type(series: pd.Series) -> str:
     col_name = str(series.name or "")
 
-    # Already-parsed datetime
     if pd.api.types.is_datetime64_any_dtype(series):
         return "date"
 
@@ -48,14 +45,18 @@ def infer_type(series: pd.Series) -> str:
         return "categorical"
 
     if pd.api.types.is_numeric_dtype(series):
-        return "id" if _is_id_column(series, col_name) else "numerical"
+        # Rule: only an identifier if name contains "id" AND >95% unique values.
+        # Columns like age, salary, credit_score are ALWAYS numerical.
+        if _is_id_column(series, col_name):
+            return "id"
+        return "numerical"
 
-    # String column — probe the first 200 non-null values
+    # String column — probe first 200 non-null values
     sample = series.dropna().astype(str).str.strip().head(200)
     if len(sample) == 0:
         return "categorical"
 
-    # Date pattern match
+    # Date pattern check
     date_hits = sum(1 for v in sample if any(p.match(v) for p in _DATE_PATTERNS))
     if date_hits / len(sample) >= 0.60:
         return "date"
@@ -70,11 +71,11 @@ def infer_type(series: pd.Series) -> str:
         except Exception:
             pass
 
-    # Numeric string
+    # Numeric strings
     if pd.to_numeric(sample, errors="coerce").notna().sum() / len(sample) >= 0.80:
         return "numerical"
 
-    # High-cardinality free text
+    # Very high cardinality free-text
     unique_ratio = series.nunique() / max(len(series.dropna()), 1)
     if unique_ratio > 0.90 and series.nunique() > 100:
         return "text"
@@ -83,14 +84,20 @@ def infer_type(series: pd.Series) -> str:
 
 
 def _is_id_column(series: pd.Series, col_name: str) -> bool:
-    if _ID_PAT.search(col_name):
-        return True
+    """
+    A column is an identifier ONLY when BOTH conditions hold:
+      1. The column NAME matches the ID pattern (contains "id", "_id", "id_", etc.)
+      2. The unique value ratio exceeds 95%
+
+    This prevents columns like 'age', 'salary', 'credit_score' from being
+    misclassified as identifiers just because they have many distinct values.
+    """
+    if not _ID_NAME_PAT.search(col_name):
+        return False   # name doesn't look like an ID → always numerical
     clean = series.dropna()
     if len(clean) < 5:
-        return False
-    if pd.api.types.is_integer_dtype(clean) and clean.nunique() / len(clean) > 0.95:
-        return True
-    return False
+        return True    # tiny sample + ID name → treat as ID
+    return clean.nunique() / len(clean) > 0.95
 
 
 def get_column_types(df: pd.DataFrame) -> dict[str, str]:
@@ -99,16 +106,13 @@ def get_column_types(df: pd.DataFrame) -> dict[str, str]:
 
 
 def get_column_info(df: pd.DataFrame, col_types: dict[str, str]) -> list[dict]:
-    """Return list of column metadata dicts for the upload response."""
     result = []
     for col in df.columns:
         s = df[col]
-        result.append(
-            {
-                "name": col,
-                "type": col_types[col],
-                "missing_pct": round(s.isna().sum() / max(len(s), 1) * 100, 1),
-                "unique_count": int(s.nunique()),
-            }
-        )
+        result.append({
+            "name":         col,
+            "type":         col_types[col],
+            "missing_pct":  round(s.isna().sum() / max(len(s), 1) * 100, 1),
+            "unique_count": int(s.nunique()),
+        })
     return result

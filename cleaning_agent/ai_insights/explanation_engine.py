@@ -67,18 +67,22 @@ def _explain_num_num(ins: dict) -> str:
 
     verb = "increase" if direction == "positive" else "decrease"
     body = {
-        "strong":   (
+        "strong":    (
             f"There is a **strong {direction} relationship** between {col_a} and {col_b} "
             f"(Pearson r = {corr:.2f}). As {col_a} increases, {col_b} tends to {verb} substantially."
         ),
-        "moderate": (
+        "moderate":  (
             f"There is a **moderate {direction} relationship** between {col_a} and {col_b} "
             f"(r = {corr:.2f}). The pattern is meaningful but not perfectly consistent — "
             f"other factors also influence {col_b}."
         ),
-        "weak":     (
+        "weak":      (
             f"There is a **weak {direction} tendency** between {col_a} and {col_b} "
             f"(r = {corr:.2f}). The pattern exists but explains only a small fraction of the variation."
+        ),
+        "very weak": (
+            f"There is **no meaningful linear relationship** between {col_a} and {col_b} "
+            f"(r = {corr:.2f}). These two columns appear largely independent of each other."
         ),
     }.get(strength, ins.get("summary", ""))
 
@@ -97,24 +101,24 @@ def _explain_cat_num(ins: dict) -> str:
     cat_col, num_col = cols[0], cols[1]
     top_cat    = meta.get("top_category", "?")
     top_val    = meta.get("top_value", 0)
+    low_cat    = meta.get("low_category", "?")
+    low_val    = meta.get("low_value", 0)
     overall    = meta.get("overall_mean", 0)
     n_groups   = meta.get("group_count", 0)
     p_val      = meta.get("anova_p_value")
     strength   = ins.get("strength", "weak")
 
-    diff_pct   = abs(top_val - overall) / max(abs(overall), 1e-9) * 100
-    hi_lo      = "highest" if top_val >= overall else "lowest"
-
     body = (
-        f"When the data is grouped by **{cat_col}**, the '{top_cat}' group shows "
-        f"the {hi_lo} average **{num_col}** ({top_val:.2f} vs overall mean {overall:.2f} — "
-        f"a {diff_pct:.1f}% difference)."
+        f"When grouped by **{cat_col}**, the **'{top_cat}'** group has the highest average "
+        f"**{num_col}** ({top_val:.2f}), while **'{low_cat}'** has the lowest ({low_val:.2f}). "
+        f"The overall mean is {overall:.2f}."
     )
 
     comment = {
-        "strong":   f"The differences across the {n_groups} groups are **substantial** — this is likely a meaningful segmentation.",
-        "moderate": f"Group differences are **moderate** across {n_groups} categories.",
-        "weak":     f"Group differences are **small** across {n_groups} categories.",
+        "strong":    f"The differences across the {n_groups} groups are **substantial** — this is a meaningful segmentation.",
+        "moderate":  f"Group differences are **moderate** across {n_groups} categories.",
+        "weak":      f"Group differences are **minor** across {n_groups} categories.",
+        "very weak": f"Group differences are **very small** across {n_groups} categories.",
     }.get(strength, "")
 
     sig = (
