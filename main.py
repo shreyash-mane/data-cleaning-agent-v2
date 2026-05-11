@@ -19,15 +19,19 @@ import os
 from typing import Any
 
 import pandas as pd
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+
+load_dotenv()
 
 from cleaning_agent.pipeline import CleaningPipeline
 from cleaning_agent.profiler import profile_dataset, profile_column
 from cleaning_agent.predictor import predict_action, _load_model
 from cleaning_agent.detector import detect_dataset_type
 from cleaning_agent.intelligence import refine_action
+from services.auth_router import router as auth_router
 from cleaning_agent.analyzer import analyze_dataset
 from cleaning_agent.stat_analyzer.routes import router as stat_analyzer_router
 from cleaning_agent.ai_insights.routes import router as ai_insights_router
@@ -50,6 +54,7 @@ PIPELINE = CleaningPipeline()
 
 app.include_router(stat_analyzer_router)
 app.include_router(ai_insights_router)
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 AVAILABLE_ACTIONS = [
     "no_change",
