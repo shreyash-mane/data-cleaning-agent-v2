@@ -18,7 +18,7 @@ rng = np.random.default_rng(42)
 
 ROWS_PER_CLASS = 4000
 
-ALL_TYPES = ["numeric", "age", "score", "salary", "date", "email", "text", "category"]
+ALL_TYPES = ["numeric", "age", "score", "credit_score", "salary", "date", "email", "text", "category"]
 
 rows = []
 
@@ -183,6 +183,51 @@ for _ in range(ROWS_PER_CLASS):
         inv_email=0,
         skew=0.0,
         label="fill_unknown",
+    ))
+
+# ── 10. credit_score — impute_median (FICO 300-850, moderately skewed) ────────
+# credit_score columns should be imputed with median, NOT flagged as out-of-range.
+# This teaches the model that credit_score with missing values → impute_median.
+for _ in range(ROWS_PER_CLASS):
+    skew = float(rng.uniform(-1.5, 1.5))
+    rows.append(row(
+        "credit_score",
+        missing_rate=rng.uniform(0.01, 0.30),
+        unique_ratio=rng.uniform(0.3, 1.0),
+        inv_num=0,
+        outliers=rng.integers(0, 5),
+        inv_date=0,
+        inv_email=0,
+        skew=skew,
+        label="impute_median",
+    ))
+
+# credit_score — no_change (already complete, no missing)
+for _ in range(ROWS_PER_CLASS // 2):
+    rows.append(row(
+        "credit_score",
+        missing_rate=0.0,
+        unique_ratio=rng.uniform(0.3, 1.0),
+        inv_num=0,
+        outliers=rng.integers(0, 3),
+        inv_date=0,
+        inv_email=0,
+        skew=rng.uniform(-1.0, 1.0),
+        label="no_change",
+    ))
+
+# credit_score — flag_outliers (extreme values outside 300-850 present)
+for _ in range(ROWS_PER_CLASS // 2):
+    rows.append(row(
+        "credit_score",
+        missing_rate=rng.uniform(0.0, 0.10),
+        unique_ratio=rng.uniform(0.3, 1.0),
+        inv_num=0,
+        outliers=rng.integers(3, 20),
+        inv_date=0,
+        inv_email=0,
+        skew=rng.uniform(0.5, 3.0),
+        label="flag_outliers",
     ))
 
 # ── Save ──────────────────────────────────────────────────────────────────────

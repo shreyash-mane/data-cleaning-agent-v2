@@ -186,7 +186,19 @@ def refine_action(
     # ── 1. Score / age out-of-range check (before imputation decisions) ──────
     #    If a numeric column has values outside a known valid range, those
     #    need to be flagged/converted first — not just imputed over.
-    if col_type == "score" or re.search(r"\bscore\b|\brating\b|\bgrade\b", col_name_lower):
+    # Credit scores (FICO 300-850) must be checked before the generic score
+    # rule — they are NOT 0-100 and should not be escalated to convert_and_flag.
+    if col_type == "credit_score" or re.search(r"credit.?score|fico|creditworthiness", col_name_lower):
+        violations = _range_violations(col_series, 300, 850)
+        if violations > 0 and predicted_action not in ("convert_and_flag", "flag_outliers"):
+            reasoning["refined"] = True
+            reasoning["range_violations"] = violations
+            reasoning["reason"] = (
+                f"{violations} value(s) outside FICO credit score range [300-850] — "
+                f"escalated from '{predicted_action}' to 'convert_and_flag'"
+            )
+            return "convert_and_flag", reasoning
+    elif col_type == "score" or re.search(r"\bscore\b|\brating\b|\bgrade\b", col_name_lower):
         violations = _range_violations(col_series, 0, 100)
         if violations > 0 and predicted_action not in ("convert_and_flag", "flag_outliers"):
             reasoning["refined"] = True

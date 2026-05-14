@@ -202,7 +202,13 @@ def _action_convert_and_flag(df: pd.DataFrame, col: str, log: dict) -> pd.DataFr
         df.loc[out_mask, "review_required"] = True
         df.loc[out_mask, "review_notes"] += f"; {col}: age > 120 flagged"
 
-    if re.search(r"score|rating|grade|mark", col_name_lower):
+    # Credit scores (FICO range 300-850) must be checked before the generic
+    # score rule to avoid wrongly nullifying valid values above 100.
+    if re.search(r"credit.?score|fico|creditworthiness", col_name_lower):
+        out_mask = (df[col] < 300) | (df[col] > 850)
+        df.loc[out_mask, "review_required"] = True
+        df.loc[out_mask, "review_notes"] += f"; {col}: credit score out of 300-850 (FICO) range"
+    elif re.search(r"score|rating|grade|mark", col_name_lower):
         out_mask = (df[col] < 0) | (df[col] > 100)
         df.loc[out_mask, col] = pd.NA
         df.loc[out_mask, "review_required"] = True

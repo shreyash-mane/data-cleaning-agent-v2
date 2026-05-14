@@ -38,6 +38,8 @@ _NAME_PATTERNS = {
     "date":     re.compile(r"date|_dt$|_at$|time|login|created|updated|dob|birth", re.I),
     "age":      re.compile(r"^age$|_age$|^age_", re.I),
     "salary":   re.compile(r"salary|wage|income|pay|compensation", re.I),
+    # credit_score must come before "score" — FICO range is 300-850, not 0-100
+    "credit_score": re.compile(r"credit.?score|fico|creditworthiness", re.I),
     "score":    re.compile(r"score|rating|grade|mark|rank", re.I),
     "boolean":  re.compile(r"^is_|^has_|^was_|^can_|^allow|verified|active|enabled|subscribed|opted|flag(ged)?$|approved|deleted|visible|published", re.I),
     "category": re.compile(r"department|dept|category|cat|type|status|gender|country|region|city|state", re.I),
@@ -208,7 +210,7 @@ def profile_column(series: pd.Series, col_name: str) -> dict:
         "skewness": 0.0,
     }
 
-    if col_type in ("numeric", "age", "score", "salary"):
+    if col_type in ("numeric", "age", "score", "credit_score", "salary"):
         numeric = _try_numeric_series(series)
         valid = numeric.dropna()
         original_non_null = series.dropna()
