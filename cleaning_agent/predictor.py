@@ -56,8 +56,10 @@ def _rule_based_action(profile: dict) -> str:
     skewness = profile.get("skewness", 0.0)
     unique_ratio = profile.get("unique_ratio", 1.0)
 
+    NUMERIC_TYPES = ("numeric", "age", "score", "credit_score", "salary")
+
     # Invalids take priority
-    if invalid_numeric > 0 and col_type in ("numeric", "age", "score", "salary"):
+    if invalid_numeric > 0 and col_type in NUMERIC_TYPES:
         return "convert_and_flag"
     if invalid_date > 0 and col_type == "date":
         return "parse_and_flag"
@@ -65,12 +67,12 @@ def _rule_based_action(profile: dict) -> str:
         return "normalize_and_flag"
 
     # Outliers (numeric, no invalids)
-    if outlier_count > 0 and col_type in ("numeric", "age", "score", "salary") and invalid_numeric == 0:
+    if outlier_count > 0 and col_type in NUMERIC_TYPES and invalid_numeric == 0:
         return "flag_outliers"
 
     # Missing values
     if missing_rate > 0:
-        if col_type in ("numeric", "age", "score", "salary"):
+        if col_type in NUMERIC_TYPES:
             return "impute_mean" if abs(skewness) < 0.5 else "impute_median"
         if col_type in ("text", "category"):
             return "fill_mode" if unique_ratio < 0.3 else "fill_unknown"
@@ -117,11 +119,14 @@ def predict_action(profile: dict) -> dict[str, Any]:
 
     col_type = profile.get("col_type", "text")
 
-    # Encode col_type — handle unseen labels gracefully
+    # Encode col_type — handle unseen labels gracefully.
+    # credit_score is numeric-like; fall back to "numeric" not "text".
+    NUMERIC_FALLBACK = {"credit_score"}
     try:
         col_type_encoded = int(le.transform([col_type])[0])
     except ValueError:
-        col_type_encoded = int(le.transform(["text"])[0])
+        fallback = "numeric" if col_type in NUMERIC_FALLBACK else "text"
+        col_type_encoded = int(le.transform([fallback])[0])
 
     features = pd.DataFrame([{
         "col_type_encoded": col_type_encoded,
